@@ -4,6 +4,8 @@ Pwn Adventure 3 Fly Solution! :)
 
 C++ version and Cheat Engine ASM version in repo and below...
 
+After going into game in offline mode: Enable the script, press F1 to toggle fly active, then middle mouse button to use it!
+
 Pwn Fly ASM:
 ```
 [enable]
