@@ -1,4 +1,5 @@
 [enable]
+//RetroGamesEngineer on github (C) 2019
 alloc(FlyThread,$1000)
 registersymbol(FlyThread)
 createthread(FlyThreadStart)
