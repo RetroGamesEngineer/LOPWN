@@ -5,6 +5,7 @@ Pwn Adventure 3 Fly Solution! :)
 C++ version and Cheat Engine ASM version in repo and below...
 
 Pwn Fly ASM:
+```
 [enable]
 //RetroGamesEngineer on github (C) 2019
 alloc(FlyThread,$1000)
@@ -174,9 +175,10 @@ FlyThread+10: //Causes FlyThread to exit
 dd 0
 
 unregistersymbol(FlyThread)
-
+```
 
 Pwn Fly ASM Copy Pastable Directly To Cheat Engine:
+```
 <?xml version="1.0" encoding="utf-8"?>
 <CheatTable>
   <CheatEntries>
@@ -396,3 +398,4 @@ unregistersymbol(FlyThread)
     </CheatEntry>
   </CheatEntries>
 </CheatTable>
+```
