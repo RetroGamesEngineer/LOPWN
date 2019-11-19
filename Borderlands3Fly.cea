@@ -1,5 +1,5 @@
 [enable]
-//Borderlands 3 Fly Cheat v1.1
+//Borderlands 3 Fly Cheat v1.1.1
 //RetroGamesEngineer on github (C) 2019
 alloc(FlyThread,$1000,Borderlands3.exe+9a8d2b)
 registersymbol(FlyThread)
@@ -120,25 +120,23 @@ mov [FlyStatus],0 //Set FlyStatus value of 0 / thread exited
 ret
 
 {uint64 AreKeysPressed(uint64 packedKeySequence)
-Returns in rax: zero if all keys were held down, or one if not all keys were held down
+Returns in rax: zero if all keys were held down, or nonzero if not all keys were held down
 rcx == packedKeySequence (keys packed in reverse order [max: eight keys])}
 AreKeysPressed:
 push r15
 mov r15,rcx
 NextKey:
 test r15l,r15l
-je KeysArePressed
+je short KeysArePressed
 movzx rcx,r15l
 call NtUserGetKeyState
-and rax,80
-je KeysArentPressed
+xor rax,80
+jns short KeysArentPressed
 shr r15,8
 jmp NextKey
-KeysArentPressed:
-mov rax,1
-jmp short @f+3
 KeysArePressed:
 xor rax,rax
+KeysArentPressed:
 test rax,rax
 pop r15
 ret
@@ -157,13 +155,13 @@ jmp Return2
 
 NullifyGravityWhileFlying:
 cmp [Flying],1
-jne DontNullifyGravity
+jne short DontNullifyGravity
 mov rcx,[PlayerPositionPointer]
 sub rcx,220
 cmp rdi,rcx
-jne DontNullifyGravity
+jne short DontNullifyGravity
 movq rcx,xmm12 //While flying and it is player's position being updated
-mov [rdi+220],rcx   //Only allow updating x+y coordinates excluding z
+mov [rdi+220],rcx //Only allow updating x+y coordinates excluding z
 jmp Return3
 DontNullifyGravity:
 movups [rdi+220],xmm12
