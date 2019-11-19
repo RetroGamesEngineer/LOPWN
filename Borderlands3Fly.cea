@@ -56,8 +56,6 @@ mov rax,[PlayerPositionPointer]
 test rax,rax
 je @b
 NoLongerFlying:
-cmp [Flying],0
-je @f
 mov [Flying],0
 
 FlyThreadLoop:
@@ -125,15 +123,15 @@ rcx == packedKeySequence (keys packed in reverse order [max: eight keys])}
 AreKeysPressed:
 push r15
 mov r15,rcx
-NextKey:
-test r15l,r15l
+@@:
+test r15,r15
 je short KeysArePressed
 movzx rcx,r15l
 call NtUserGetKeyState
 xor rax,80
 jns short KeysArentPressed
 shr r15,8
-jmp NextKey
+jmp @b
 KeysArePressed:
 xor rax,rax
 KeysArentPressed:
