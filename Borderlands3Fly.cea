@@ -1,19 +1,19 @@
 [enable]
-//Borderlands 3 Fly Cheat
+//Borderlands 3 Fly Cheat v1.1
 //RetroGamesEngineer on github (C) 2019
 alloc(FlyThread,$1000,Borderlands3.exe+9a8d2b)
 registersymbol(FlyThread)
 createthread(FlyThreadStart)
-
-define(VK_F12,7b) //Toggle on/off
-define(VK_MBUTTON,4) //Trigger Flying
+define(VK_F12,7b) //Toggle on/off (F12)
+define(VK_MBUTTON,4) //Trigger Flying (Middle Mouse Button)
+define(MEGAHOTKEYQUIT,4c4b4a485a101211) //Quit thread to allow disabling (Ctrl+Alt+Shift+Z+H+J+K+L)
 
 struct pitch_yaw_custom_vectors
-negative_sin_yaw: dd ?
+inverse_sin_yaw: dd ?
 cos_yaw: dd ?
 sin_pitch: dd ?
 zero1: dd ?
-cos_pitch: dd ?
+cos_pitch1: dd ?
 cos_pitch2: dd ?
 pitch_steepness_factor: dd ?
 zero2: dd ?
@@ -24,39 +24,27 @@ zero3: dd ?
 endstruct
 
 FlyThread:
-label(PitchYawVectors)
 PitchYawVectors:
-dd 0 0 0 0 0 0 (float)1.5 0 0 0 0 0
-label(PitchYawPointer)
+dd 0 0 0 0 0 0 (float)1.0 0 0 0 0 0
 PitchYawPointer:
 dq 0
-label(PlayerPositionPointer)
 PlayerPositionPointer:
 dq 0
-label(FlyEnabled)
-FlyEnabled:
+FlyStatus: //1 == running, 2 == should exit, 0 == thread exited
 dd 1
-label(FlyActive)
-FlyActive:
-dd 0
-label(FlySpeed)
+FlyActive: //1 == can fly, 0 == can't fly
+dd 1
 FlySpeed:
 dd (float)3.37
-label(Flying)
 Flying:
 dd 0
-label(Temp)
-Temp:
-dq 0 0
-label(PI_divided_by_180)
 PI_divided_by_180:
 dd (float)0.0174532
-label(Ninety)
 Ninety:
 dd (float)90.0
+dq 9090909090909090
 
-label(FlyThreadStart)
-FlyThreadStart:
+FlyThreadStart: //+0x60
 sub rsp,100
 @@:
 mov rcx,1
@@ -67,124 +55,136 @@ je @b
 mov rax,[PlayerPositionPointer]
 test rax,rax
 je @b
-
-label(NoLongerFlying)
 NoLongerFlying:
+cmp [Flying],0
+je @f
 mov [Flying],0
-label(FlyThreadLoop)
+
 FlyThreadLoop:
 mov rcx,1
 call Sleep
-cmp [FlyEnabled],0 //Exit thread upon disabling
+cmp [FlyStatus],2 //Exit thread on FlyStatus value of 2 / thread should exit
+je FlyThreadExit
+mov rcx,MEGAHOTKEYQUIT //Or megahotkey pressed: Ctrl+Alt+Shift+Z+H+J+K+L
+call AreKeysPressed
 je FlyThreadExit
 mov rcx,VK_F12
-call GetAsyncKeyState
-and ax,8000
-je @f
+call AreKeysPressed
+jne @f
 xor [FlyActive],1 //Toggle Fly on/off
-mov rcx,#337
+mov rcx,#200
 call Sleep
 @@:
-cmp [FlyActive],1 //Only Fly if activated
-jne FlyThreadLoop
+cmp [FlyActive],1 //Only if fly is activated
+jne NoLongerFlying
 mov rcx,VK_MBUTTON  //And Middle Mouse Button is pressed
-call GetAsyncKeyState
-and ax,8000
-je NoLongerFlying
-mov [Flying],1
-//Setup custom vectors
+call AreKeysPressed
+jne NoLongerFlying
 //PitchYawVectors layout: -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
 //PitchYawVectors+10 layout: cos(pitch), cos(pitch), 1.0f, 0.0f
 //PitchYawVectors+20 layout: FlySpeed, FlySpeed, FlySpeed, 0.0f
-mov rax,[PitchYawPointer]
-mov rcx,[PlayerPositionPointer]
+mov [Flying],1 //Currently flying == true
 mov rdx,PitchYawVectors
-//Get pitch sin and cos
+mov rax,[PitchYawPointer]
 fld dword [rax] //load pitch
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
-fst dword [rdx+cos_pitch]
+fst dword [rdx+cos_pitch1]
 fstp dword [rdx+cos_pitch2]
 fstp dword [rdx+sin_pitch]
-//Get yaw sin and cos
 fld dword [rax+4] //load yaw
 fsub dword [Ninety] //yaw - 90.0f
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
 fstp dword [rdx+cos_yaw]
-fstp dword [rdx+negative_sin_yaw]
-fldz //load zero
-fsub dword [rdx+negative_sin_yaw] //0.0f - sin(yaw-90.0f) == -(sin(yaw-90.0f))
-fstp dword [rdx+negative_sin_yaw]
+fstp dword [rdx+inverse_sin_yaw]
+xor byte [rdx+inverse_sin_yaw+3],80 //flip sign -> sin(yaw-90.0f) == -(sin(yaw-90.0f))
 mov eax,[FlySpeed]
 mov [rdx+fly_speed1],eax
 mov [rdx+fly_speed2],eax
 mov [rdx+fly_speed3],eax
-
 //Vectorized calculate new x,y,z coordinates simultaneously
 //Multiply the three set up vectors and then add current player coordinates
 //Then directly write new position back to player coordinates
 movaps xmm1,[rdx]  //xmm1 == -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
 mulps xmm1,[rdx+10]//xmm1 *= cos(pitch), cos(pitch), 1.0f, 0.0f
 mulps xmm1,[rdx+20]//xmm1 *= FlySpeed, FlySpeed, FlySpeed, 0.0f
+mov rcx,[PlayerPositionPointer]
 addps xmm1,[rcx]   //xmm1 += Player.x, Player.y, Player.z, 0.0f
 movaps [rcx],xmm1  //PlayerXYZ == xmm1
 jmp FlyThreadLoop
 
-label(FlyThreadExit)
 FlyThreadExit:
 add rsp,100
+mov [FlyStatus],0 //Set FlyStatus value of 0 / thread exited
 ret
 
-label(GetPitchYawPointer)
+{uint64 AreKeysPressed(uint64 packedKeySequence)
+Returns in rax: zero if all keys were held down, or one if not all keys were held down
+rcx == packedKeySequence (keys packed in reverse order [max: eight keys])}
+AreKeysPressed:
+push r15
+mov r15,rcx
+NextKey:
+test r15l,r15l
+je KeysArePressed
+movzx rcx,r15l
+call NtUserGetKeyState
+and rax,80
+je KeysArentPressed
+shr r15,8
+jmp NextKey
+KeysArentPressed:
+mov rax,1
+jmp short @f+3
+KeysArePressed:
+xor rax,rax
+test rax,rax
+pop r15
+ret
+
 GetPitchYawPointer:
 movsd [rbx+50],xmm0
 lea rcx,[rbx+50]
 mov [PitchYawPointer],rcx
 jmp Return1
 
-label(GetPlayerPositionPointer)
 GetPlayerPositionPointer:
 movups xmm1,[rax+220]
 lea rax,[rax+220]
 mov [PlayerPositionPointer],rax
 jmp Return2
 
-label(NullifyGravityWhileFlying)
 NullifyGravityWhileFlying:
-cmp [Flying],0
-je DontNullifyGravity
+cmp [Flying],1
+jne DontNullifyGravity
 mov rcx,[PlayerPositionPointer]
 sub rcx,220
 cmp rdi,rcx
 jne DontNullifyGravity
-movups [Temp],xmm12 //While flying and it is player's position being updated
-mov rcx,[Temp]
+movq rcx,xmm12 //While flying and it is player's position being updated
 mov [rdi+220],rcx   //Only allow updating x+y coordinates excluding z
 jmp Return3
-label(DontNullifyGravity)
 DontNullifyGravity:
 movups [rdi+220],xmm12
 jmp Return3
 
 Borderlands3.exe+9a8d2b:
 jmp GetPitchYawPointer
-label(Return1)
 Return1:
 
 Borderlands3.exe+131651e1:
 jmp GetPlayerPositionPointer
 nop 2
-label(Return2)
 Return2:
 
 Borderlands3.exe+1c27984f:
 jmp NullifyGravityWhileFlying
 nop 3
-label(Return3)
 Return3:
 
 [disable]
+assert(FlyThread+40,0) //Verify thread status == 0 == thread exited before allowing disabling and dealloc'ing
 
 Borderlands3.exe+9a8d2b:   //[rbx+50] == Pitch, [rbx+54] == Yaw
 db f2 0f 11 43 50
@@ -198,7 +198,5 @@ Borderlands3.exe+1c27984f: //Writes to player + other entity coordinates
 db 44 0f 11 a7 20 02 00 00
 //movups [rdi+220],xmm12
 
-FlyThread+40: //Causes FlyThread to exit
-dd 0
-
+dealloc(FlyThread)
 unregistersymbol(FlyThread)
