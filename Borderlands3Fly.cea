@@ -137,7 +137,6 @@ jmp NextKey
 KeysArePressed:
 xor rax,rax
 KeysArentPressed:
-test rax,rax
 pop r15
 ret
 
