@@ -84,13 +84,13 @@ jne NoLongerFlying
 mov [Flying],1 //Currently flying == true
 mov rdx,PitchYawVectors
 mov rax,[PitchYawPointer]
-fld dword [rax] //load pitch
+fld dword [rax+50] //load pitch
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
 fst dword [rdx+cos_pitch1]
 fstp dword [rdx+cos_pitch2]
 fstp dword [rdx+sin_pitch]
-fld dword [rax+4] //load yaw
+fld dword [rax+54] //load yaw
 fsub dword [Ninety] //yaw - 90.0f
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
@@ -107,9 +107,9 @@ mov [rdx+fly_speed3],eax
 movaps xmm1,[rdx]  //xmm1 == -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
 mulps xmm1,[rdx+10]//xmm1 *= cos(pitch), cos(pitch), 1.0f, 0.0f
 mulps xmm1,[rdx+20]//xmm1 *= FlySpeed, FlySpeed, FlySpeed, 0.0f
-mov rcx,[PlayerPositionPointer]
-addps xmm1,[rcx]   //xmm1 += Player.x, Player.y, Player.z, 0.0f
-movaps [rcx],xmm1  //PlayerXYZ == xmm1
+mov rax,[PlayerPositionPointer]
+addps xmm1,[rax+220]   //xmm1 += Player.x, Player.y, Player.z, 0.0f
+movaps [rax+220],xmm1  //PlayerXYZ == xmm1
 jmp FlyThreadLoop
 
 FlyThreadExit:
@@ -140,13 +140,11 @@ ret
 
 GetPitchYawPointer:
 movsd [rbx+50],xmm0
-lea rcx,[rbx+50]
-mov [PitchYawPointer],rcx
+mov [PitchYawPointer],rbx
 jmp Return1
 
 GetPlayerPositionPointer:
 movups xmm1,[rax+220]
-lea rax,[rax+220]
 mov [PlayerPositionPointer],rax
 jmp Return2
 
@@ -154,7 +152,6 @@ NullifyGravityWhileFlying:
 cmp [Flying],1
 jne short DontNullifyGravity
 mov rcx,[PlayerPositionPointer]
-sub rcx,220
 cmp rdi,rcx
 jne short DontNullifyGravity
 movq rcx,xmm12 //While flying and it is player's position being updated
