@@ -8,7 +8,7 @@ define(VK_F12,7b) //Toggle on/off (F12)
 define(VK_MBUTTON,4) //Trigger Flying (Middle Mouse Button)
 define(MEGAHOTKEYQUIT,4c4b4a485a101211) //Quit thread to allow disabling (Ctrl+Alt+Shift+Z+H+J+K+L)
 
-struct pitch_yaw_custom_vectors
+struct world_transformation_vectors
 inverse_sin_yaw: dd ?
 cos_yaw: dd ?
 sin_pitch: dd ?
@@ -24,7 +24,7 @@ zero3: dd ?
 endstruct
 
 FlyThread:
-PitchYawVectors:
+WorldTransformationVectors:
 dd 0 0 0 0 0 0 (float)1.0 0 0 0 0 0
 PitchYawPointer:
 dq 0
@@ -78,11 +78,15 @@ jne NoLongerFlying
 mov rcx,VK_MBUTTON  //And Middle Mouse Button is pressed
 call AreKeysPressed
 jne NoLongerFlying
-//PitchYawVectors layout: -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
-//PitchYawVectors+10 layout: cos(pitch), cos(pitch), 1.0f, 0.0f
-//PitchYawVectors+20 layout: FlySpeed, FlySpeed, FlySpeed, 0.0f
+//WorldTransformationVectors layout: -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
+//WorldTransformationVectors+10 layout: cos(pitch), cos(pitch), 1.0f, 0.0f
+//WorldTransformationVectors+20 layout: FlySpeed, FlySpeed, FlySpeed, 0.0f
 mov [Flying],1 //Currently flying == true
-mov rdx,PitchYawVectors
+mov rdx,WorldTransformationVectors
+mov eax,[FlySpeed]
+mov [rdx+fly_speed1],eax
+mov [rdx+fly_speed2],eax
+mov [rdx+fly_speed3],eax
 mov rax,[PitchYawPointer]
 fld dword [rax+50] //load pitch
 fmul dword [PI_divided_by_180] //Degrees to radians
@@ -97,10 +101,6 @@ fsincos
 fstp dword [rdx+cos_yaw]
 fstp dword [rdx+inverse_sin_yaw]
 xor byte [rdx+inverse_sin_yaw+3],80 //flip sign -> sin(yaw-90.0f) == -(sin(yaw-90.0f))
-mov eax,[FlySpeed]
-mov [rdx+fly_speed1],eax
-mov [rdx+fly_speed2],eax
-mov [rdx+fly_speed3],eax
 //Vectorized calculate new x,y,z coordinates simultaneously
 //Multiply the three set up vectors and then add current player coordinates
 //Then directly write new position back to player coordinates
@@ -151,11 +151,9 @@ jmp Return2
 NullifyGravityWhileFlying:
 cmp [Flying],1
 jne short DontNullifyGravity
-mov rcx,[PlayerPositionPointer]
-cmp rdi,rcx
+cmp rdi,[PlayerPositionPointer]
 jne short DontNullifyGravity
-movq rcx,xmm12 //While flying and it is player's position being updated
-mov [rdi+220],rcx //Only allow updating x+y coordinates excluding z
+movq [rdi+220],xmm12 //Only allow updating x+y coordinates while flying and updating player position
 jmp Return3
 DontNullifyGravity:
 movups [rdi+220],xmm12
