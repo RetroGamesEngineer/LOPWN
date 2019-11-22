@@ -1,6 +1,6 @@
 [enable]
-//Borderlands 3 Fly Cheat v1.1.1
-//RetroGamesEngineer on github (C) 2019
+{Borderlands 3 Fly Cheat v1.1.1
+RetroGamesEngineer on github (C) 2019}
 alloc(FlyThread,$1000,Borderlands3.exe+9a8d2b)
 registersymbol(FlyThread)
 createthread(FlyThreadStart)
@@ -46,21 +46,23 @@ dq 9090909090909090
 
 FlyThreadStart: //+0x60
 sub rsp,100
-@@:
-mov rcx,1
-call Sleep
-mov rax,[PitchYawPointer]
-test rax,rax
-je @b
-mov rax,[PlayerPositionPointer]
-test rax,rax
-je @b
+mov rbx,WorldTransformationVectors
 NoLongerFlying:
 mov [Flying],0
 
 FlyThreadLoop:
 mov rcx,1
 call Sleep
+mov r15,[PitchYawPointer]
+test r15,r15
+je @b
+mov r14,[PlayerPositionPointer]
+test r14,r14
+je @b
+mov eax,[FlySpeed]
+mov [rbx+fly_speed1],eax
+mov [rbx+fly_speed2],eax
+mov [rbx+fly_speed3],eax
 cmp [FlyStatus],2 //Exit thread on FlyStatus value of 2 / thread should exit
 je FlyThreadExit
 mov rcx,MEGAHOTKEYQUIT //Or megahotkey pressed: Ctrl+Alt+Shift+Z+H+J+K+L
@@ -82,34 +84,27 @@ jne NoLongerFlying
 //WorldTransformationVectors+10 layout: cos(pitch), cos(pitch), 1.0f, 0.0f
 //WorldTransformationVectors+20 layout: FlySpeed, FlySpeed, FlySpeed, 0.0f
 mov [Flying],1 //Currently flying == true
-mov rdx,WorldTransformationVectors
-mov eax,[FlySpeed]
-mov [rdx+fly_speed1],eax
-mov [rdx+fly_speed2],eax
-mov [rdx+fly_speed3],eax
-mov rax,[PitchYawPointer]
-fld dword [rax+50] //load pitch
+fld dword [r15+50] //load pitch
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
-fst dword [rdx+cos_pitch1]
-fstp dword [rdx+cos_pitch2]
-fstp dword [rdx+sin_pitch]
-fld dword [rax+54] //load yaw
+fst dword [rbx+cos_pitch1]
+fstp dword [rbx+cos_pitch2]
+fstp dword [rbx+sin_pitch]
+fld dword [r15+54] //load yaw
 fsub dword [Ninety] //yaw - 90.0f
 fmul dword [PI_divided_by_180] //Degrees to radians
 fsincos
-fstp dword [rdx+cos_yaw]
-fstp dword [rdx+inverse_sin_yaw]
-xor byte [rdx+inverse_sin_yaw+3],80 //flip sign -> sin(yaw-90.0f) == -(sin(yaw-90.0f))
+fstp dword [rbx+cos_yaw]
+fstp dword [rbx+inverse_sin_yaw]
+xor byte [rbx+inverse_sin_yaw+3],80 //flip sign -> sin(yaw-90.0f) == -(sin(yaw-90.0f))
 //Vectorized calculate new x,y,z coordinates simultaneously
 //Multiply the three set up vectors and then add current player coordinates
 //Then directly write new position back to player coordinates
-movaps xmm1,[rdx]  //xmm1 == -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
-mulps xmm1,[rdx+10]//xmm1 *= cos(pitch), cos(pitch), 1.0f, 0.0f
-mulps xmm1,[rdx+20]//xmm1 *= FlySpeed, FlySpeed, FlySpeed, 0.0f
-mov rax,[PlayerPositionPointer]
-addps xmm1,[rax+220]   //xmm1 += Player.x, Player.y, Player.z, 0.0f
-movaps [rax+220],xmm1  //PlayerXYZ == xmm1
+movaps xmm1,[rbx]  //xmm1 == -sin(yaw-90.0f), cos(yaw-90.0f), sin(pitch), 0.0f
+mulps xmm1,[rbx+10]//xmm1 *= cos(pitch), cos(pitch), 1.0f, 0.0f
+mulps xmm1,[rbx+20]//xmm1 *= FlySpeed, FlySpeed, FlySpeed, 0.0f
+addps xmm1,[r14+220]   //xmm1 += Player.x, Player.y, Player.z, 0.0f
+movaps [r14+220],xmm1  //PlayerXYZ == xmm1
 jmp FlyThreadLoop
 
 FlyThreadExit:
